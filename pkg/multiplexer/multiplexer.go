@@ -13,6 +13,7 @@ import (
 	"github.com/cilium/tetragon/pkg/logger"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/proto"
 	"k8s.io/klog/v2"
 )
 
@@ -156,6 +157,9 @@ func (cm *ClientMultiplexer) GetEvents(ctx context.Context, allowList, denyList 
 				default:
 				}
 				res, err := stream.Recv()
+				if err != nil {
+					res = proto.Clone(res).(*tetragon.GetEventsResponse)
+				}
 				c <- GetEventsResult{res, err}
 			}
 		}(stream)
