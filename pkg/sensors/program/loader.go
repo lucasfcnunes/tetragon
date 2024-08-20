@@ -696,44 +696,6 @@ func slimVerifierError(errStr string) string {
 	return errStr[:headEnd] + "\n...\n" + errStr[tailStart:]
 }
 
-func installTailCalls(bpfDir string, spec *ebpf.CollectionSpec, coll *ebpf.Collection, load *Program) error {
-	// FIXME(JM): This should be replaced by using the cilium/ebpf prog array initialization.
-
-	secToProgName := make(map[string]string)
-	for name, prog := range spec.Programs {
-		secToProgName[prog.SectionName] = name
-	}
-
-	install := func(pinPath string, secPrefix string) error {
-		tailCallsMap, err := ebpf.LoadPinnedMap(filepath.Join(bpfDir, pinPath), nil)
-		if err != nil {
-			return nil
-		}
-		defer tailCallsMap.Close()
-
-		for i := 0; i < 13; i++ {
-			secName := fmt.Sprintf("%s/%d", secPrefix, i)
-			if progName, ok := secToProgName[secName]; ok {
-				if prog, ok := coll.Programs[progName]; ok {
-					err := tailCallsMap.Update(uint32(i), uint32(prog.FD()), ebpf.UpdateAny)
-					if err != nil {
-						return fmt.Errorf("update of tail-call map '%s' failed: %w", pinPath, err)
-					}
-				}
-			}
-		}
-		return nil
-	}
-
-	if load.TcMap != nil {
-		if err := install(load.TcMap.PinPath, load.TcPrefix); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func doLoadProgram(
 	bpfDir string,
 	load *Program,
@@ -856,11 +818,6 @@ func doLoadProgram(
 		return nil, fmt.Errorf("opening collection '%s' failed: %w", load.Name, err)
 	}
 	defer coll.Close()
-
-	err = installTailCalls(bpfDir, spec, coll, load)
-	if err != nil {
-		return nil, fmt.Errorf("installing tail calls failed: %s", err)
-	}
 
 	for _, mapLoad := range load.MapLoad {
 		pinPath := ""
